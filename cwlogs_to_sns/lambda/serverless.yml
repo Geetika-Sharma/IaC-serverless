@@ -1,0 +1,68 @@
+service: snsingestion
+provider:
+  name: aws
+  runtime: python3.8
+  stage: ${opt:stage, 'dev'}
+  region: # Specify region
+  timeout: 30
+  memorySize: 128
+  versionFunctions: false
+  vpc:
+    securityGroupIds: []
+    subnetIds: []
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - logs:*
+      Resource:
+        - ${self:custom.log_group_arn}
+        - ${self:custom.log_stream_arn}
+        - ${self:custom.log_group_wildcard}
+    - Effect: Allow
+      Action:
+        - sns:Publish
+      Resource:
+        - ${self:custom.sns_topic_arn}
+  environment:
+    LOG_GROUP: ${self:custom.log_group_name}
+    SNS_TOPIC_ARN: ${self:custom.sns_topic_arn}
+plugins:
+  - serverless-plugin-subscription-filter
+  - serverless-plugin-log-retention
+custom:
+  ## Change parameters as needed
+  account: # AWS Account ID
+  account_name: # AWS Account Name
+  log_group_name: "# Name of the log group"
+  log_group_arn: "arn:aws:logs:${self:provider.region}:${self:custom.account}:log-group:${self:custom.log_group_name}"
+  log_group_wildcard: "arn:aws:logs:*:${self:custom.account}:log-group:*:log-stream:*"
+  log_stream_arn: "arn:aws:logs:${self:provider.region}:${self:custom.account}:log-group:${self:custom.log_group_name}:log-stream:*"
+  sns_topic_name: "# SNS Topic Name"
+  sns_topic_arn: "arn:aws:sns:${self:provider.region}:${self:custom.account}:${self:custom.sns_topic_name}"
+  query_filter: '{$.level = "error" || (($.status = "4*" || $.status = "5*") && $.status != "401" && $.status != "403")}'
+  # query_filter: '{$.status = "200"}'
+  logRetentionInDays: 30
+package:
+  patterns:
+    - '!./node_modules'
+    - '!./package*'
+functions:
+  snsingestion:
+    timeout: 30
+    handler: snsingestion/ingestion.lambda_handler
+    package:
+      patterns: snsingestion/handler
+    events:
+    - cloudwatchLog:
+        logGroup: ${self:custom.log_group_name}
+        filter: ${self:custom.query_filter}
+resources:
+  Resources:
+    MyTestTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        DisplayName: '[Sample] Production error logs'
+        TopicName: 'Sample-production-error-logs'
+        Subscription:
+          - Endpoint: '# Specify Email-ID'
+            Protocol: "email"

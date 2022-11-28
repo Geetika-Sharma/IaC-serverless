@@ -1,0 +1,6 @@
+{
+  "devDependencies": {
+    "serverless-plugin-log-retention": "^2.0.0",
+    "serverless-plugin-subscription-filter": "^1.0.7"
+  }
+}
