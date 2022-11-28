@@ -1,0 +1,50 @@
+service: devops
+
+provider:
+  name: aws
+  runtime: python3.8
+  region: ${opt:region, 'eu-west-1'}
+  memorySize: 128
+  timeout: 180
+  lambdaHashingVersion: 20201221 #Enables the new hashing mechanism in v2
+  versionFunctions: false # Set to true if Lambda versioning is required
+  iam:
+    role:
+      name: ${self:service}-snapshotRole
+      statements:
+        - Effect: Allow
+          Action: 
+            - ec2:DeleteSnapshot
+            - ec2:DescribeSnapshotAttribute
+            - ec2:DescribeSnapshotTierStatus
+            - ec2:DescribeSnapshots  
+            - ec2:CreateTags
+          Resource: "*"
+  environment:
+    account: ${aws:accountId}
+    region: ${self:provider.region}
+
+functions:
+  deleteSnapshotFunction:
+    handler: src/deleteOldEC2Snapshots.lambda_handler
+    events:
+    # Run at 11:00 pm everyday 
+      - schedule: cron(0 23 * * ? *)
+    environment:
+      limit: "90"
+      
+  tagSnapshotFunction:
+    handler: src/tagSnapshotsToKeep.lambda_handler
+    events:
+    # Run at 10:00 pm every Monday 
+      - schedule: cron(0 22 ? * MON *)
+    environment:
+      saving: "90"
+  
+  deleteTwoYearOlderSnapshotFunction:
+    handler: src/deleteTwoYearsOldEC2Snapshots.lambda_handler
+    events:
+    # Run at 11:30 pm every 1st day of the month
+      - schedule: cron(30 23 1 * ? *)
+    environment:
+      twoYearsInDays: "730"
